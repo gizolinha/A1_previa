@@ -50,7 +50,7 @@ int gbv_open(Library *lib, const char *filename) {
     superbloco sb;
     //le o superbloco para RAM
     fread(&sb, sizeof(superbloco), 1, file);
-    printf("GBV OPEN - Superbloco lido: %d documentos, offset_dir: %ld\n", sb.num_docs, sb.offset_dir); //DEPURACAO
+    printf("GBV OPEN - Superbloco lido: %d documentos, offset_dir: %ld\n", sb.num_docs, sb.offset_dir); 
 
     //inicializa a lib
     lib->count = sb.num_docs;
@@ -97,11 +97,11 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
 
     //le o superbloco para a RAM
     superbloco sb;
-    fread(&sb, sizeof(superbloco), 1, archive);
+    fread(&sb, sizeof(superbloco), 1, file);
     printf("GBV ADD - Superbloco lido: %d documentos, offset_dir: %ld\n", sb.num_docs, sb.offset_dir); 
 
     //verifica se o documento ja existe
-    int doc_existente = 0;
+    int doc_existente = -1;
     for(int i = 0; i < lib->count; i++) {
         if(strcmp(lib->docs[i].name, docname) == 0) {
             doc_existente = i;
@@ -109,12 +109,28 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
         }
     }
 
-    //calcular novo offset
+    //novo offset onde os dados serao escritos
+    long offset_dados;
+    if(doc_existente != -1) {
+        //substitui o arquivo anterior
+        offset_dados = (lib->docs[doc_existente].offset);
+
+    } else {
+        //novo doc offset vai pro fim do arquivo
+        fseek(file, 0, SEEK_END);
+        offset_dados = ftell(file); //me diga onde estou dentro do file
+    }
+
+    //criar funcao para substituir metadados?
+    //funcao para alterar os metadados
+    //criar uma funcao para dar free e chamar ela dentro das outras funcoes
+    //como funciona o vetor dentro desse arquivao? confuso
+    
+    //realocar memoria para o vetor adicionando o novo doc 
+    //tem que att o numero de documentos na biblioteca ou no superbloco
+
+    //escrever metadados do doc no arquivo usando o buffer no while
    
-
-
-
-
     fclose(file);
     return 0;
 }

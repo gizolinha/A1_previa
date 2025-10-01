@@ -16,12 +16,14 @@ int main(int argc, char *argv[]) {
         printf("Erro ao abrir biblioteca %s\n", biblioteca);
         return 1;
     }
-
-    if (strcmp(opcao, "-a") == 0) {
+    
+    if (strcmp(opcao, "-a") == 0) 
+        printf("deucerto"); printf(" \n");
+    /*
         for (int i = 3; i < argc; i++) {
             gbv_add(&lib, biblioteca, argv[i]);
         }
-    } /* else if (strcmp(opcao, "-r") == 0) {
+    }  else if (strcmp(opcao, "-r") == 0) {
         for (int i = 3; i < argc; i++) {
             gbv_remove(&lib, argv[i]);
         }
@@ -31,9 +33,9 @@ int main(int argc, char *argv[]) {
         gbv_view(&lib, argv[3]);
     } else if (strcmp(opcao, "-o") == 0 && argc >= 4) {
         gbv_order(&lib, biblioteca, argv[3]);
-    } */ else {
+    }  else {
         printf("Opção inválida.\n");
-    }
+    } */
 
     return 0;
 }
