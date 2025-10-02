@@ -27,31 +27,32 @@ int gbv_create(const char *filename) {
  
     fclose(file);
     printf("biblioteca criada: %s\n", filename); 
+
     return 0; //retorna 0 em caso de sucesso
 }
 
-//alocar memoria parao vetor de documento
+//abre ou cria a GBV e aloca memoria para os docs
 int gbv_open(Library *lib, const char *filename) {
     FILE* file = fopen(filename, "rb+"); 
 
     //caso o arquivo nao exista entao chama a gbv create
     if(!file) {
         if(gbv_create(filename) != 0) {
-            perror("gbv_open gbv open nao foi possivel criar arquivo");
+            perror("GBV_OPEN nao foi possivel criar arquivo");
             return -1;
         }
     }
     //reabrir o arquivo depois de criar
     file = fopen(filename, "rb+");
     if(!file) {
-        perror("gbv_open gbv open nao foi possivel abrir arquivo depois de criar");
+        perror("GBV_OPEN nao foi possivel abrir arquivo depois de criar");
         return -1;
     }
 
     superbloco sb;
     //le o superbloco para RAM
     fread(&sb, sizeof(superbloco), 1, file);
-    printf("gbv_open superloco: %d documentos, offset_dir: %ld\n", sb.num_docs, sb.offset_dir); 
+    printf("GBV_OPEN superloco: %d documentos, offset_dir: %ld\n", sb.num_docs, sb.offset_dir); 
 
     //inicializa a lib
     lib->count = sb.num_docs;
@@ -60,7 +61,7 @@ int gbv_open(Library *lib, const char *filename) {
     if(sb.num_docs > 0) {
         lib->docs = malloc(sb.num_docs * sizeof(Document));
         if(!lib->docs) {
-            perror("gbv_open erro ao alocar memoria"); //DEPURACAO
+            perror("GBV_OPEN erro ao alocar memoria"); //DEPURACAO
             fclose(file);
             return -1;
         }
@@ -70,7 +71,7 @@ int gbv_open(Library *lib, const char *filename) {
         fread(lib->docs, sizeof(Document), sb.num_docs, file);
 
         //Na gbv_open, depois de fread(lib->docs, ...)
-        printf("GBV_OPEN - Documentos carregados (%d):\n", lib->count);
+        printf("GBV_OPEN documentos carregados (%d):\n", lib->count);
         for(int i = 0; i < lib->count; i++) {
             printf("  [%d] '%s'\n", i, lib->docs[i].name);
         }   
@@ -103,12 +104,13 @@ int encontra_doc(Library *lib, const char *docname) {
     return -1;
 }
 
+//adiciona novo doc ao GBV ou substitui com mesmo nome
 int gbv_add(Library *lib, const char *archive, const char *docname) {
     FILE* file = fopen(archive, "rb+"); //abrir arquivao
     FILE* novo_doc = fopen(docname, "rb"); // doc que vai ser add
 
     if(!file || !novo_doc) {
-        perror("gbv_add fopen nao foi possivel abrir os arquivos");
+        perror("GBV_ADD fopen nao foi possivel abrir os arquivos");
         if(file)
             fclose(file);
         if(novo_doc)
@@ -128,10 +130,10 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
     int doc_existente = encontra_doc(lib, docname);
 
 
-    // VERIFIQUE todos os documentos carregados
-    printf("DEBUG: Documentos na biblioteca (%d):\n", lib->count);
+    //todos os documentos carregados na GBV
+    printf("documentos na GBV (%d):\n", lib->count);
     for(int i = 0; i < lib->count; i++) {
-    printf("  [%d] '%s' (offset: %ld)\n", i, lib->docs[i].name, lib->docs[i].offset);
+        printf("  [%d] '%s' (offset: %ld)\n", i, lib->docs[i].name, lib->docs[i].offset);
     }
     
     //novo offset onde os dados serao escritos
@@ -143,10 +145,10 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
     } else {
         //novo doc offset vai pro fim do arquivo
         fseek(file, 0, SEEK_END);
-        offset_dados = ftell(file); //me diga onde estou dentro do file
+        offset_dados = ftell(file); 
     }
 
-    //escrever infos do doc para a bib usando buffer
+    //escrever infos do doc para a GBV usando buffer
     //pula para o offset de dados
     fseek(file, offset_dados, SEEK_SET);
 
@@ -163,15 +165,15 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
 
     //depois de escrever fecha o documento
     fclose(novo_doc);
-    printf("escritos %ld bytes para biblioteca\n", total_escrito); //DEPURACAO
+    printf("escritos %ld bytes para GBV\n", total_escrito); //DEPURACAO
 
-    //atualizar metadados an RAM
+    //atualizar metadados na RAM
     if(doc_existente != -1) {
         //att doc existente (substituido)
         strcpy(lib->docs[doc_existente].name, docname); //copia de uma string para outra
         lib->docs[doc_existente].size = tam_doc;
         lib->docs[doc_existente].date = time (NULL);
-        //offset se mantem pois subs o existente
+        //offset se mantem pois substitui o existente
         printf("documento atualizado: %s\n", docname); //DEPURACAO
 
     } else {
@@ -185,10 +187,9 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
         //atualiza vetor redimensionado
         lib->docs = att_vetor;
 
-        //inicializa a nova pos do vetor com 0 para nao corromper com lixo
+        //inicializa a nova pos do vetor com 0 para nao corromper com lixo de memoria
         memset(&lib->docs[lib->count], 0, sizeof(Document));
 
-    
         //att do novo doc adicionado
         //lib->count eh a prox posicao livre no vetor
         int pos_livre = lib->count;
@@ -199,9 +200,9 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
     
         //aumenta quantidade de documentos do GBV
         lib->count++;
-        sb.num_docs = lib->count;
+        sb.num_docs = lib->count; //att superbloco
 
-        printf("Novo documento adicionado: %s (total: %d documentos)\n", docname, lib->count); //DEPURACAO
+        printf("novo documento adicionado: %s (total: %d documentos)\n", docname, lib->count); //DEPURACAO
     }
 
     //att nova posicao do diretorio depois dos arquivos add
@@ -221,23 +222,30 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
     //att superbloco
     fseek(file, 0, SEEK_SET);
     fwrite(&sb, sizeof(superbloco), 1, file);
+
     fclose(file);
     return 0;
 }
 
-
+//remove logicamente os documentos, dados permanecem e exclui metadados
 int gbv_remove(Library *lib, const char *docname) {
 
-}
-
-int gbv_list(const Library *lib){
 
 }
 
+//lista os documentos, exibindo: nome; tamanho em bytes; data de inserção; posição (offset)
+int gbv_list(const Library *lib) {
+
+}
+
+//visuaiza o documento em blocos de tamanho fixo e permite navegar pelo conteudo
+//n = prox bloco
+//p = bloco anterior
+//q = sair da visualizacao
 int gbv_view(const Library *lib, const char *docname) {
 
 }
 
-int gbv_order(Library *lib, const char *archive, const char *criteria) {
+/*int gbv_order(Library *lib, const char *archive, const char *criteria) {
     
-}
+} */

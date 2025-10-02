@@ -11,6 +11,7 @@ DUVIDAS:
 -como testar com dois documentos com mesmo nome
 - posso deixar os prints de depuracao?
 - posso criar um gbv close? para dar free na memoria?
+- ver se o offset dos arquivos
 
 
 

@@ -20,7 +20,6 @@ int main(int argc, char *argv[]) {
     if (strcmp(opcao, "-a") == 0) {
         for (int i = 3; i < argc; i++) {
             gbv_add(&lib, biblioteca, argv[i]);
-            printf("deu certo");
         }
     } /* else if (strcmp(opcao, "-r") == 0) {
         for (int i = 3; i < argc; i++) {
