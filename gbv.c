@@ -7,7 +7,7 @@
 
 //estrutura do superbloco
 typedef struct {
-    int num_docs; //numero de documentos
+    long num_docs; //numero de documentos
     long offset_dir; //posicao onde comeca o diretorio
 } superbloco;
 
@@ -58,7 +58,7 @@ int gbv_open(Library *lib, const char *filename) {
     superbloco sb;
     //le o superbloco para RAM
     fread(&sb, sizeof(superbloco), 1, file);
-    printf("Informacoes do superbloco: %d documentos, offset_dir: %ld\n", sb.num_docs, sb.offset_dir); 
+    printf("Informacoes do superbloco: %ld documentos, offset_dir: %ld\n", sb.num_docs, sb.offset_dir); 
     printf("\n");
 
     //inicializa a lib

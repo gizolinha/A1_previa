@@ -2,7 +2,7 @@ Giovanna Joecy Sona de Oliveira
 GRR20231947
 
 
-DUVIDAS:
+## DUVIDAS:
 - como liberar a memoria ao fim da execução?
 - o que fazer com a função do - o?
 - na gbv add, quando atualiza os metadados do substituido o offset se mantem o mesmo nao? pois so substitui
@@ -12,10 +12,19 @@ DUVIDAS:
 - testar somente com txts?
 - como marcar para apresentar
 - perguntar se a especificação da biblioteca.gbv ta certa na remove
+- arquivo com mesmo nome mas conteudo diferente
 
 
 
+- considerar que o arquivo de mesmo nome pode ser maior ou menor que o ja inserido no arquivo, entao tem que mover os bytes, mas caso seja maior tem que sobrescrever de tras para frente
+- mudar parametro da remove para incluir o file 
+- ftruncate na remove praevitar lixo no arquivo
+- mudar parametro da view para passar o file const char archive
+- remove tem que remover os dados do arquivo
+- truncate na remove apra diminuir o tamanho do arquivo
 
+
+## OBSERVACOES
 - achei melhor na add deixar apenas as funções mais simples como subfunções pois tive dificuldade de me ficar indo e voltando e me entender no codigo
 - nao achei que copensa fazer uma funcao pra att os metadados pois muitos parametros
 - dei prioridade em colocar muitas saidas de erros e printf ao longo do codigo pra facilitar o debug
