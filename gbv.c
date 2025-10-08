@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include "gbv.h"
 #include "util.h"
 
@@ -19,6 +20,7 @@ int gbv_create(const char *filename) {
         return -1;
     }
 
+    //inicializa o superbloco
     superbloco sb;
     sb.num_docs = 0; 
     sb.offset_dir = sizeof(superbloco); 
@@ -85,7 +87,7 @@ int gbv_open(Library *lib, const char *filename) {
     return 0;
 }
 
-//calcula o tamanho do doc a ser adicionado na bib
+//calcula o tamanho do doc a ser adicionado ou removido na bib
 long calcula_tamanho(FILE* novo_doc) {
     fseek(novo_doc, 0, SEEK_END); //vai pro fim do arquivo
     long tam_doc = ftell(novo_doc); // pega o tamanho do novo doc
@@ -94,7 +96,7 @@ long calcula_tamanho(FILE* novo_doc) {
 }
 
 //retorna doc duplicado ou -1 caso contrario
-int encontra_doc(Library *lib, const char *docname) {
+int encontra_doc( const Library *lib, const char *docname) {
     for(int i = 0; i < lib->count; i++) {
         if(strcmp(lib->docs[i].name, docname) == 0) {
             return i;
@@ -221,14 +223,14 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
 
 
 //remove logicamente os documentos, dados permanecem e exclui metadados
-int gbv_remove(Library *lib, const char *docname) {
+int gbv_remove(Library *lib, const char *archive, const char *docname) {
     if(!lib || !docname) {
         perror("biblioteca ou doc invalidos");
         return -1;
     }
 
     //abre o arquivo pra atualizar
-    FILE *file = fopen("biblioteca.gbv", "rb+");
+    FILE *file = fopen(archive, "rb+");
     if (!file) {
         perror("GBV_REMOVE erro ao abrir biblioteca\n");
         return -1;
@@ -236,12 +238,85 @@ int gbv_remove(Library *lib, const char *docname) {
     
     //encontra o doc a ser removido com a funcao
     int doc_remove = encontra_doc(lib,docname);
-
     if(doc_remove == -1) {
         printf("Documento nao encontrado\n");
         return -1;
     }
 
+    //infos sobre documento a ser removido
+    long offset_doc_removido = lib->docs[doc_remove].offset; //onde esta o arquivo a ser removido
+    long tam_doc_removido = lib->docs[doc_remove].size;
+    long offset_pos_remocao = offset_doc_removido + tam_doc_removido;
+    printf("Removendo documento - Offset: %ld, Tamanho: %ld\n", offset_pos_remocao, tam_doc_removido);
+
+    //le o superbloco
+    superbloco sb;
+    fread(&sb, sizeof(superbloco), 1, file);
+    fseek(file, 0, SEEK_SET);
+
+    long prox_offset_dados = sb.offset_dir;
+    
+    //encontra inicio do rpox documento se existir
+    for(int i = 0; i < lib->count; i++) {
+        if(lib->docs[i].offset > offset_doc_removido) {
+            prox_offset_dados = lib->docs[i].offset;
+            break;
+        }
+    }
+
+    long tam_mover = prox_offset_dados - offset_pos_remocao;
+    //DEBUG
+    printf(" DEBUG: Movendo %ld bytes de dados...\n", tam_mover); //SO PARA DEBUG
+
+    //shift dos dados, movendo para frente
+    if(tam_mover > 0) {
+        char buffer[BUFFER_SIZE];
+        long bytes_faltando = tam_mover;
+        long offset_leitura = offset_pos_remocao;
+        long offset_escrita = offset_pos_remocao;
+
+        //DEBUG
+        printf(" DEBUG: Movendo %ld bytes de dados...\n", tam_mover); //SO PARA DEBUG
+
+        //move em blocos do tam do buffer
+        while (bytes_faltando > 0) {
+            long bytes_ler;
+
+            //quantos bytes ler no bloco atual
+            if(bytes_faltando < BUFFER_SIZE) 
+                //ultimo bloco, menos bytes que tam buffer
+                bytes_ler = bytes_faltando;
+            else
+                //le max de bytes do buffer
+                bytes_ler = BUFFER_SIZE;  
+            
+            //le o offset atual
+            fseek(file, offset_leitura, SEEK_SET);
+            long bytes_lidos = fread(buffer, 1, bytes_ler, file);
+
+            if(bytes_lidos > 0) {
+                //escreve no novo offset
+                fseek(file, offset_escrita, SEEK_SET);
+                fwrite(buffer, 1, bytes_lidos, file);
+
+                offset_leitura += bytes_lidos;
+                offset_escrita += bytes_lidos;
+                bytes_faltando -= bytes_lidos;
+            } else 
+                break;
+        }
+        
+    }
+
+    //atualiza offset dos documentos movidos
+    for(int i = 0; i < lib->count; i++) {
+        if(lib->docs[i].offset > offset_pos_remocao)
+            lib->docs[i].offset -= tam_doc_removido;
+    }
+
+ 
+
+    //remove metadadaos
     //se nao for o ultimo elemento do vetor, reorganiza
     if(doc_remove < lib->count -1) {
         //move todos os elementos para tras
@@ -250,6 +325,10 @@ int gbv_remove(Library *lib, const char *docname) {
     }
     //reduz a contadora
     lib->count--;
+    sb.num_docs = lib->count;  
+    //REVISAR COMO FUNCIONA
+    sb.offset_dir -= tam_doc_removido;
+    printf("DEBUG: sb.offset_dir DEPOIS=%ld\n", sb.offset_dir);
      
     //redimensiona o vetor
     if(lib->count > 0) {
@@ -263,11 +342,7 @@ int gbv_remove(Library *lib, const char *docname) {
         lib->docs = att_vetor;
     }
 
-    //att superbloco 
-    superbloco sb;
-    fread(&sb, sizeof(superbloco), 1, file);
-    sb.num_docs = lib->count;   
-    //sobrescreve o superbloco
+    //atualiza o arquivo
     fseek(file, 0, SEEK_SET);
     fwrite(&sb, sizeof(superbloco), 1, file);
 
@@ -276,6 +351,18 @@ int gbv_remove(Library *lib, const char *docname) {
     //se nao tiver apenas um doc no arquivo, reescreva os docs
     if(lib->count > 0)
         fwrite(lib->docs, sizeof(Document), lib->count, file); 
+
+    //trunca o arquivo
+    long novo_tam_file = sb.offset_dir + (lib->count * sizeof(Document));
+    printf("DEBUG: Novo tamanho calculado = %ld + (%d * %zu) = %ld\n", sb.offset_dir, lib->count, sizeof(Document), novo_tam_file);
+    fflush(file); //garante que todos os dados foram escritos NAO SEI SE PRECISA 
+
+    //REVISAR OQ E ISSO
+    long file_descritor = fileno(file);
+    if(ftruncate(file_descritor, novo_tam_file) != 0) {
+        perror("GBV REMOVE erro ao reduzir arquivo");
+        return -1;
+    }
 
     fclose(file);
     printf("Documento '%s' removido\n", docname);
@@ -297,7 +384,7 @@ int gbv_list(const Library *lib) {
 
     //formatacao apra ficar legivel
     printf("%-30s %-12s %-20s %-10s\n", 
-           "NOME", "TAMANHO", "DATA INSERIDO", "OFFSET DADOS");
+           "NOME", "TAMANHO (B )", "DATA INSERIDO", "OFFSET DADOS");
     
   
     //dados dos docs
@@ -318,12 +405,103 @@ int gbv_list(const Library *lib) {
     return 0;
 }
 
-//visuaiza o documento em blocos de tamanho fixo e permite navegar pelo conteudo
+//exibe os caracteres bloco atual na funaco view
+void exibe_bloco( const char *buffer, long bytes_lidos) {
+    //exibe conteudo
+    for(int i = 0; i < bytes_lidos; i++) {
+        //caracteres que podem ser impresssos segunda ASCII entre 32 e 126
+        if(buffer[i] >= 32 && buffer[i] <= 126) 
+            printf("%c", buffer[i]);
+        else    
+            printf("."); //nao podem ser impressos
+    }
+    printf("\n");
+}
+
+//visuaiza o documento em blocos de tamanho fixo e permite navegar pelo conteudo do doc
 //n = prox bloco
 //p = bloco anterior
 //q = sair da visualizacao
-int gbv_view(const Library *lib, const char *docname) {
+int gbv_view(const Library *lib , const char *archive, const char *docname) {
+    if(!archive || !docname) {
+        perror("GBV VIEW arquivo ou doc invalidos");
+        return -1;
+    }
 
+    //doc a ser visualizado
+    int doc_view = encontra_doc(lib, docname);
+
+    FILE *file = fopen(archive, "rb");
+    if(!file) {
+        perror("GBV ADD erro ao abrir arquivo");
+        return -1;
+    }
+
+    //variaveis para visualizacao do doc
+    Document doc = lib->docs[doc_view];
+    long bloco_atual = 0;
+    //arredonda para garantir leitura de todos o blocos corretamente
+    //ex se (1000 + 511) ÷ 512 = 2.95 blocos (arredonda para 2 ao inves de 1 bloco que perde todo o resto)
+    //ex se fosse um arquivo menor e a div desse 0.75 ele truncaria para 0 blocos
+    long total_blocos = (doc.size + BUFFER_SIZE - 1) / BUFFER_SIZE;
+
+    printf("view doc: %s (%ld bytes, %ld blocos)\n",docname, doc.size, total_blocos);
+
+    //buffer para ler o doc
+    char buffer[BUFFER_SIZE];
+    char comando;
+
+    do {
+        //calcula a posicao no arquivo em que o bloco a ser visto esta
+        long offset_bloco = doc.offset + (bloco_atual * BUFFER_SIZE);// quanto bytes pular desde o inicio do doc
+        //bytes que faltam para ler no doc
+        long bytes_faltando = doc.size - (bloco_atual * BUFFER_SIZE);
+        long bytes_ler;
+
+        //quantos bytes ler no bloco atual
+        if(bytes_faltando < BUFFER_SIZE) 
+            //ultimo bloco, menos bytes que tam buffer
+            bytes_ler = bytes_faltando;
+        else
+            //le max de bytes do buffer
+            bytes_ler = BUFFER_SIZE;
+
+        //le o bloco apra o buffer e exibe
+        fseek(file, offset_bloco, SEEK_SET); //inicio do bloco
+        long bytes_lidos = fread(buffer, 1, bytes_ler, file); 
+        exibe_bloco(buffer, bytes_lidos);
+
+        //comandos de navegacao
+        printf("digite comando p/q/n\n");
+        comando = getchar();
+        //esvazia buffer para nao bugar
+        while(getchar() != '\n'); 
+
+        switch(comando) {
+            case 'n': //prox bloco
+                if(bloco_atual < total_blocos - 1) 
+                    bloco_atual++;            
+                else
+                    printf("ULTIMO BLOCO, use q para sair ou p para voltar\n");
+                break;
+            case 'p': //bloco anterior
+                if(bloco_atual > 0)
+                    bloco_atual--;
+                else
+                    printf("PRIMEIRO BLOCO, use q para sair ou n para avancar\n");
+                break;
+            case 'q': //sair da view
+                printf("saida da visualizacao do doc\n");
+                break;
+            default:
+                printf("comando invalido\n");
+        }   
+        printf("\n");
+
+    } while(comando != 'q');
+
+    fclose(file);
+    return 0;
 }
 
 //libera memoria
@@ -336,7 +514,4 @@ void gbv_close(Library *lib) {
 }
 
 
-/*int gbv_order(Library *lib, const char *archive, const char *criteria) {
-    
-} */
 
