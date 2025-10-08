@@ -96,7 +96,7 @@ long calcula_tamanho(FILE* novo_doc) {
 }
 
 //retorna doc duplicado ou -1 caso contrario
-int encontra_doc( const Library *lib, const char *docname) {
+int encontra_doc(const Library *lib, const char *docname) {
     for(int i = 0; i < lib->count; i++) {
         if(strcmp(lib->docs[i].name, docname) == 0) {
             return i;
@@ -156,7 +156,7 @@ int gbv_add(Library *lib, const char *archive, const char *docname) {
 
     //buffer pra passar as infos
     char buffer[BUFFER_SIZE];
-    long  bytes_lidos; 
+    long bytes_lidos; 
     long total_escrito = 0; 
 
     //enquanto houver bytes pra ler no doc
@@ -239,7 +239,7 @@ int gbv_remove(Library *lib, const char *archive, const char *docname) {
     //encontra o doc a ser removido com a funcao
     int doc_remove = encontra_doc(lib,docname);
     if(doc_remove == -1) {
-        printf("Documento nao encontrado\n");
+        printf("Documento nao encontrado ou ja removido\n");
         return -1;
     }
 
@@ -247,7 +247,8 @@ int gbv_remove(Library *lib, const char *archive, const char *docname) {
     long offset_doc_removido = lib->docs[doc_remove].offset; //onde esta o arquivo a ser removido
     long tam_doc_removido = lib->docs[doc_remove].size;
     long offset_pos_remocao = offset_doc_removido + tam_doc_removido;
-    printf("Removendo documento - Offset: %ld, Tamanho: %ld\n", offset_pos_remocao, tam_doc_removido);
+    printf("Removendo documento - Offset_doc: %ld, Tamanho: %ld\n", offset_pos_remocao, tam_doc_removido);
+    printf("\n");
 
     //le o superbloco
     superbloco sb;
@@ -266,7 +267,7 @@ int gbv_remove(Library *lib, const char *archive, const char *docname) {
 
     long tam_mover = prox_offset_dados - offset_pos_remocao;
     //DEBUG
-    printf(" DEBUG: Movendo %ld bytes de dados...\n", tam_mover); //SO PARA DEBUG
+    //printf(" DEBUG: Movendo %ld bytes de dados...\n", tam_mover); //SO PARA DEBUG
 
     //shift dos dados, movendo para frente
     if(tam_mover > 0) {
@@ -276,7 +277,7 @@ int gbv_remove(Library *lib, const char *archive, const char *docname) {
         long offset_escrita = offset_pos_remocao;
 
         //DEBUG
-        printf(" DEBUG: Movendo %ld bytes de dados...\n", tam_mover); //SO PARA DEBUG
+        //printf("DEBUG: Movendo %ld bytes de dados...\n", tam_mover); //SO PARA DEBUG
 
         //move em blocos do tam do buffer
         while (bytes_faltando > 0) {
@@ -314,8 +315,6 @@ int gbv_remove(Library *lib, const char *archive, const char *docname) {
             lib->docs[i].offset -= tam_doc_removido;
     }
 
- 
-
     //remove metadadaos
     //se nao for o ultimo elemento do vetor, reorganiza
     if(doc_remove < lib->count -1) {
@@ -328,8 +327,9 @@ int gbv_remove(Library *lib, const char *archive, const char *docname) {
     sb.num_docs = lib->count;  
     //REVISAR COMO FUNCIONA
     sb.offset_dir -= tam_doc_removido;
-    printf("DEBUG: sb.offset_dir DEPOIS=%ld\n", sb.offset_dir);
-     
+    printf("offset_dir apos remocao = %ld\n", sb.offset_dir);
+    printf("\n");
+
     //redimensiona o vetor
     if(lib->count > 0) {
         Document* att_vetor = realloc(lib->docs, lib->count * sizeof(Document));
@@ -354,7 +354,9 @@ int gbv_remove(Library *lib, const char *archive, const char *docname) {
 
     //trunca o arquivo
     long novo_tam_file = sb.offset_dir + (lib->count * sizeof(Document));
-    printf("DEBUG: Novo tamanho calculado = %ld + (%d * %zu) = %ld\n", sb.offset_dir, lib->count, sizeof(Document), novo_tam_file);
+    printf("Novo tamanho da GBV = %ld\n", novo_tam_file);
+    printf("\n");
+
     fflush(file); //garante que todos os dados foram escritos NAO SEI SE PRECISA 
 
     //REVISAR OQ E ISSO
@@ -384,7 +386,7 @@ int gbv_list(const Library *lib) {
 
     //formatacao apra ficar legivel
     printf("%-30s %-12s %-20s %-10s\n", 
-           "NOME", "TAMANHO (B )", "DATA INSERIDO", "OFFSET DADOS");
+           "NOME", "TAMANHO (B)", "DATA INSERIDO", "OFFSET DADOS");
     
   
     //dados dos docs
